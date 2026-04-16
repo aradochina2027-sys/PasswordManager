@@ -19,12 +19,14 @@ private slots:
     void on_actionNew_triggered();
     void on_actionEdit_triggered();
     void on_actionDelete_triggered();
+    void on_dataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight);
 
 private:
     Ui::MainWindow *ui;
     QStandardItemModel *model;
 
     void setupModel();
+    void loadData();
 };
 
 #endif

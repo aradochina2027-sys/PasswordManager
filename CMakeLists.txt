@@ -1,35 +1,25 @@
-cmake_minimum_required(VERSION 3.19)
-project(PasswordManager LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.5)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets)
+project(PasswordManager VERSION 0.1 LANGUAGES CXX)
 
-qt_standard_project_setup()
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 
-qt_add_executable(PasswordManager
-    WIN32 MACOSX_BUNDLE
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Sql)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Sql)
+
+set(PROJECT_SOURCES
     main.cpp
     passwordmanager.cpp
     passwordmanager.h
+    databasemanager.h
     passwordmanager.ui
 )
 
-target_link_libraries(PasswordManager
-    PRIVATE
-        Qt::Core
-        Qt::Widgets
-)
+add_executable(PasswordManager ${PROJECT_SOURCES})
 
-include(GNUInstallDirs)
-
-install(TARGETS PasswordManager
-    BUNDLE  DESTINATION .
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
-
-qt_generate_deploy_app_script(
-    TARGET PasswordManager
-    OUTPUT_SCRIPT deploy_script
-    NO_UNSUPPORTED_PLATFORM_ERROR
-)
-install(SCRIPT ${deploy_script})
+target_link_libraries(PasswordManager PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Sql)
