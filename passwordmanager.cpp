@@ -1,7 +1,6 @@
 #include "passwordmanager.h"
 #include "ui_passwordmanager.h"
 #include <QSqlQuery>
-#include <QSqlRecord>
 
 PasswordManager::PasswordManager(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow) {
@@ -27,9 +26,20 @@ void PasswordManager::setupModel() {
     model->setHeaderData(3, Qt::Horizontal, "Password");
 }
 
-void PasswordManager::loadData() {
+void PasswordManager::loadData(const QString &filter) {
     model->removeRows(0, model->rowCount());
-    QSqlQuery query("SELECT id, service, login, password FROM accounts");
+
+    QSqlQuery query;
+    if (filter.isEmpty()) {
+        query.prepare("SELECT id, service, login, password FROM accounts");
+    } else {
+        query.prepare("SELECT id, service, login, password FROM accounts "
+                      "WHERE service LIKE ? OR login LIKE ?");
+        query.addBindValue("%" + filter + "%");
+        query.addBindValue("%" + filter + "%");
+    }
+
+    query.exec();
     while (query.next()) {
         QList<QStandardItem*> items;
         items << new QStandardItem(query.value(0).toString());
@@ -41,40 +51,37 @@ void PasswordManager::loadData() {
     ui->tableViewAccounts->setColumnHidden(0, true);
 }
 
+void PasswordManager::on_lineEditSearch_textChanged(const QString &text) {
+    loadData(text);
+}
+
 void PasswordManager::on_actionNew_triggered() {
     QSqlQuery query;
     query.prepare("INSERT INTO accounts (service, login, password) VALUES (?, ?, ?)");
     query.addBindValue("New Service");
-    query.addBindValue("login");
-    query.addBindValue("password");
-
-    if (query.exec()) loadData();
+    query.addBindValue("user");
+    query.addBindValue("pass");
+    if (query.exec()) loadData(ui->lineEditSearch->text());
 }
 
 void PasswordManager::on_dataChanged(const QModelIndex &topLeft, const QModelIndex &) {
     int row = topLeft.row();
-    QString id = model->item(row, 0)->text();
-    QString service = model->item(row, 1)->text();
-    QString login = model->item(row, 2)->text();
-    QString password = model->item(row, 3)->text();
-
     QSqlQuery query;
     query.prepare("UPDATE accounts SET service=?, login=?, password=? WHERE id=?");
-    query.addBindValue(service);
-    query.addBindValue(login);
-    query.addBindValue(password);
-    query.addBindValue(id);
+    query.addBindValue(model->item(row, 1)->text());
+    query.addBindValue(model->item(row, 2)->text());
+    query.addBindValue(model->item(row, 3)->text());
+    query.addBindValue(model->item(row, 0)->text());
     query.exec();
 }
 
 void PasswordManager::on_actionDelete_triggered() {
     QModelIndex index = ui->tableViewAccounts->currentIndex();
     if (index.isValid()) {
-        QString id = model->item(index.row(), 0)->text();
         QSqlQuery query;
         query.prepare("DELETE FROM accounts WHERE id=?");
-        query.addBindValue(id);
-        if (query.exec()) loadData();
+        query.addBindValue(model->item(index.row(), 0)->text());
+        if (query.exec()) loadData(ui->lineEditSearch->text());
     }
 }
 

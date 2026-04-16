@@ -20,13 +20,14 @@ private slots:
     void on_actionEdit_triggered();
     void on_actionDelete_triggered();
     void on_dataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight);
+    void on_lineEditSearch_textChanged(const QString &text);
 
 private:
     Ui::MainWindow *ui;
     QStandardItemModel *model;
 
     void setupModel();
-    void loadData();
+    void loadData(const QString &filter = "");
 };
 
 #endif

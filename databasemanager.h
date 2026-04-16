@@ -3,14 +3,12 @@
 
 #include <QSqlDatabase>
 #include <QSqlQuery>
-#include <QSqlError>
 
 class DatabaseManager {
 public:
     static bool init() {
         QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
         db.setDatabaseName("passwords.db");
-
         if (!db.open()) return false;
 
         QSqlQuery query;
