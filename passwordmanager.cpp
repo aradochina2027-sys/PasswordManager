@@ -3,13 +3,13 @@
 #include <QSqlQuery>
 #include <QCryptographicHash>
 #include <QNetworkRequest>
+#include <QEventLoop>
 
 PasswordManager::PasswordManager(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow) {
     ui->setupUi(this);
 
     networkManager = new QNetworkAccessManager(this);
-    connect(networkManager, &QNetworkAccessManager::finished, this, &PasswordManager::onNetworkReply);
 
     setupModel();
     loadData();
@@ -18,6 +18,11 @@ PasswordManager::PasswordManager(QWidget *parent)
     ui->tableViewAccounts->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 
     connect(model, &QStandardItemModel::dataChanged, this, &PasswordManager::on_dataChanged);
+
+    // Перевірка, чи існує кнопка в UI
+    if (ui->btnCheckLeak) {
+        connect(ui->btnCheckLeak, &QPushButton::clicked, this, &PasswordManager::on_btnCheckAll_clicked);
+    }
 }
 
 PasswordManager::~PasswordManager() {
@@ -50,29 +55,45 @@ void PasswordManager::loadData(const QString &filter) {
     ui->tableViewAccounts->setColumnHidden(0, true);
 }
 
-QString PasswordManager::sha1Hash(const QString &input) {
-    return QString(QCryptographicHash::hash(input.toUtf8(), QCryptographicHash::Sha1).toHex()).toUpper();
-}
-
-void PasswordManager::on_btnCheckLeak_clicked() {
-    QModelIndex index = ui->tableViewAccounts->currentIndex();
-    if (!index.isValid()) return;
-
-    QString password = model->item(index.row(), 3)->text();
-    QString hash = sha1Hash(password);
+bool PasswordManager::checkPasswordSync(const QString &password) {
+    QString hash = QString(QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha1).toHex()).toUpper();
     QString prefix = hash.left(5);
+    QString suffix = hash.mid(5);
 
-    if(ui->statusbar) ui->statusbar->showMessage("Checking password leak...");
-    networkManager->get(QNetworkRequest(QUrl("https://api.pwnedpasswords.com/range/" + prefix)));
-}
+    QNetworkAccessManager manager;
+    QNetworkReply *reply = manager.get(QNetworkRequest(QUrl("https://api.pwnedpasswords.com/range/" + prefix)));
 
-void PasswordManager::onNetworkReply(QNetworkReply *reply) {
+    QEventLoop loop;
+    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    loop.exec();
+
+    bool leaked = false;
     if (reply->error() == QNetworkReply::NoError) {
-        if(ui->statusbar) ui->statusbar->showMessage("Check complete. See console.");
-    } else {
-        if(ui->statusbar) ui->statusbar->showMessage("Network error.");
+        leaked = reply->readAll().contains(suffix.toUtf8());
     }
     reply->deleteLater();
+    return leaked;
+}
+
+void PasswordManager::on_btnCheckAll_clicked() {
+    if (ui->statusbar) ui->statusbar->showMessage("Background check started...");
+
+    for (int i = 0; i < model->rowCount(); ++i) {
+        QString service = model->item(i, 1)->text();
+        QString password = model->item(i, 3)->text();
+
+        QtConcurrent::run([this, service, password]() {
+            bool leaked = checkPasswordSync(password);
+            QMetaObject::invokeMethod(this, "handleCheckResult", Qt::QueuedConnection,
+                                      Q_ARG(QString, service), Q_ARG(bool, leaked));
+        });
+    }
+}
+
+void PasswordManager::handleCheckResult(const QString &service, bool leaked) {
+    if (leaked && ui->statusbar) {
+        ui->statusbar->showMessage("WARNING: Password for " + service + " leaked!", 5000);
+    }
 }
 
 void PasswordManager::on_lineEditSearch_textChanged(const QString &text) { loadData(text); }
